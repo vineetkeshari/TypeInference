@@ -69,12 +69,16 @@ getConstraints (Binary (Or) e1 e2) = let bx = getNewVar 5 in
 getConstraints (If b t f) = let ix = getNewVar 6 in
                                 let ((bx, bt):c1, (tx, tt):c2, (fx, ft):c3) = (getConstraints b, getConstraints t, getConstraints f) in
                                     [(TVar ix, tt), (tt, ft), (bt, TBool), (bx, bt), (tx, tt), (fx, ft)] ++ c1 ++ c2 ++ c3
+getConstraints (Declare x e body) = (getConstraints (substExp x e body)) ++ getConstraints(e)
+getConstraints (Variable x) = error ("Unbounded variable " ++ x)
 
 getConstraints _ = []
 
 unify :: [(Type, Type)] -> [(String, Type)]
 unify [] = []
-unify ((s,t):c') = if s==t then unify(c') else unifyA ((s,t):c')
+unify ((s,t):c') = if s==t
+                    then unify(c')
+                    else unifyA ((s,t):c')
 
 unifyA :: [(Type, Type)] -> [(String, Type)]
 unifyA ((TVar svar, t):c') = if svar `notElem` (freevars t)
@@ -108,6 +112,22 @@ subst s t (TVar s1) = if s == s1
 subst s t (TFun t1 t2) = TFun (subst s t t1) (subst s t t2)
 -- subst s t (TPoly ...
 subst _ _ t = t
+
+substExp :: String -> Exp -> Exp -> Exp
+substExp _ _ (Literal v) = Literal v
+substExp x e (Unary uop e1) = Unary uop (substExp x e e1)
+substExp x e (Binary bop e1 e2) = Binary bop (substExp x e e1) (substExp x e e2)
+substExp x e (If b t f) = If (substExp x e b) (substExp x e t) (substExp x e f)
+substExp x e (Variable y) = if x == y
+                                then e
+                                else (Variable y)
+substExp x e (Declare y e' b) = if x == y
+                                    then (Declare y (substExp x e e') b)
+                                    else (Declare y (substExp x e e') (substExp x e b))
+substExp x e (Function y e') = if x == y
+                                    then (Function y e')
+                                    else (Function y (substExp x e e'))
+substExp x e (Call e1 e2) = Call (substExp x e e1) (substExp x e e2)
 
 -- Code to display expressions
 instance Show Exp where
