@@ -1,5 +1,5 @@
 {
-module HW6parse where
+module HW6Parse where
 import Prelude hiding (LT, GT, EQ, id)
 import Data.Char
 import HW6

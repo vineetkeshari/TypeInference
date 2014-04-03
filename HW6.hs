@@ -29,7 +29,7 @@ data Exp = Literal   Value
          | Declare   String Exp Exp
          | Function  String Exp      -- new
          | Call      Exp Exp         -- changed
-  deriving (Eq)
+  deriving (Eq,Show)
   
 type Env = [(String, Value)]
 
@@ -143,6 +143,7 @@ substExp x e (Function y e') = if x == y
                                     else (Function y (substExp x e e'))
 substExp x e (Call e1 e2) = Call (substExp x e e1) (substExp x e e2)
 
+{-
 -- Code to display expressions
 instance Show Exp where
   show e = "[" ++ showExp 0 e ++ "]"
@@ -171,7 +172,7 @@ showBinary outer inner a op b =
       where result = showExp inner a ++ " " ++ op ++ " " ++ showExp inner b
       
 paren x = "(" ++ x ++ ")"
-
+-}
 data Type = TInt
           | TBool
           | TVar String

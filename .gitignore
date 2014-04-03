@@ -9,5 +9,5 @@ cabal-dev
 .cabal-sandbox/
 cabal.sandbox.config
 cabal.config
-hw6parse.hs
+HW6Parse.hs
 test.hs
