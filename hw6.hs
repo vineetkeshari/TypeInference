@@ -34,10 +34,14 @@ data Exp = Literal   Value
 type Env = [(String, Value)]
 
 getNewVar :: Int -> String
-getNewVar i = "X" ++ show(i)
+getNewVar nextVal = "X" ++ show(nextVal)
 
 infer :: Exp -> Type
-infer e = fromJust (lookup "X3" (unify (getConstraints e)))
+infer e = applySigma (unify (getConstraints e)) (TVar "X3")
+
+applySigma :: [(String, Type)] -> Type -> Type
+applySigma [] t' = t'
+applySigma ((s,t):sig) t' = applySigma sig (subst s t t')
 
 getConstraints :: Exp -> [(Type, Type)]
 getConstraints (Literal (IntV _)) = let ix = getNewVar 1 in [(TVar ix, TInt)]
@@ -51,26 +55,34 @@ getConstraints (Unary (Neg) e) = let ux = getNewVar 4 in
 getConstraints (Binary (Add) e1 e2) = let bx = getNewVar 5 in
                                         let ((e1x, t1):c1, (e2x, t2):c2) = (getConstraints e1, getConstraints e2) in
                                             [(TVar bx, TInt), (t1, TInt), (t2, TInt), (e1x, t1), (e2x, t2)] ++ c1 ++ c2
-getConstraints (Binary (Sub) e1 e2) = let bx = getNewVar 5 in
+getConstraints (Binary (Sub) e1 e2) = let bx = getNewVar 6 in
                                         let ((e1x, t1):c1, (e2x, t2):c2) = (getConstraints e1, getConstraints e2) in
                                             [(TVar bx, TInt), (t1, TInt), (t2, TInt), (e1x, t1), (e2x, t2)] ++ c1 ++ c2
-getConstraints (Binary (Mul) e1 e2) = let bx = getNewVar 5 in
+getConstraints (Binary (Mul) e1 e2) = let bx = getNewVar 7 in
                                         let ((e1x, t1):c1, (e2x, t2):c2) = (getConstraints e1, getConstraints e2) in
                                             [(TVar bx, TInt), (t1, TInt), (t2, TInt), (e1x, t1), (e2x, t2)] ++ c1 ++ c2
-getConstraints (Binary (Div) e1 e2) = let bx = getNewVar 5 in
+getConstraints (Binary (Div) e1 e2) = let bx = getNewVar 8 in
                                         let ((e1x, t1):c1, (e2x, t2):c2) = (getConstraints e1, getConstraints e2) in
                                             [(TVar bx, TInt), (t1, TInt), (t2, TInt), (e1x, t1), (e2x, t2)] ++ c1 ++ c2
-getConstraints (Binary (And) e1 e2) = let bx = getNewVar 5 in
+getConstraints (Binary (And) e1 e2) = let bx = getNewVar 9 in
                                         let ((e1x, t1):c1, (e2x, t2):c2) = (getConstraints e1, getConstraints e2) in
                                             [(TVar bx, TBool), (t1, TBool), (t2, TBool), (e1x, t1), (e2x, t2)] ++ c1 ++ c2
-getConstraints (Binary (Or) e1 e2) = let bx = getNewVar 5 in
+getConstraints (Binary (Or) e1 e2) = let bx = getNewVar 10 in
                                         let ((e1x, t1):c1, (e2x, t2):c2) = (getConstraints e1, getConstraints e2) in
                                             [(TVar bx, TBool), (t1, TBool), (t2, TBool), (e1x, t1), (e2x, t2)] ++ c1 ++ c2
-getConstraints (If b t f) = let ix = getNewVar 6 in
+getConstraints (If b t f) = let ix = getNewVar 20 in
                                 let ((bx, bt):c1, (tx, tt):c2, (fx, ft):c3) = (getConstraints b, getConstraints t, getConstraints f) in
                                     [(TVar ix, tt), (tt, ft), (bt, TBool), (bx, bt), (tx, tt), (fx, ft)] ++ c1 ++ c2 ++ c3
 getConstraints (Declare x e body) = (getConstraints (substExp x e body)) ++ getConstraints(e)
 getConstraints (Variable x) = error ("Unbounded variable " ++ x)
+getConstraints (Function x e) = let (funx, fromx, tox) = (getNewVar 31, getNewVar 32, getNewVar 33) in
+                                    [(TVar funx, TFun (TVar fromx) (TVar tox))]
+getConstraints (Call (Function x e) arg) = let cx = getNewVar 30 in
+                                            let ((argx, argt):c1, (funx, funt):c2, (ex, et):c3) = (getConstraints arg, getConstraints (Function x e), getConstraints (substExp x arg e)) in
+                                                case funt of
+                                                    (TFun fromt tot) -> [(TVar cx, tot), (tot, et), (fromt, argt), (argx,argt), (funx, funt), (ex,et)] ++ c1 ++ c2 ++ c3
+                                                    _ -> error "Function type doesn't look like function"
+getConstraints (Call _ arg) = error "Cannot call non-function"
 
 getConstraints _ = []
 
@@ -82,13 +94,13 @@ unify ((s,t):c') = if s==t
 
 unifyA :: [(Type, Type)] -> [(String, Type)]
 unifyA ((TVar svar, t):c') = if svar `notElem` (freevars t)
-                                then (unify(substAll svar t c')) ++ [(svar,t)]
+                                then (svar,t):(unify(substAll svar t c'))
                                 else unifyB ((TVar svar,t):c')
 unifyA z = unifyB z
 
 unifyB :: [(Type, Type)] -> [(String, Type)]
 unifyB ((s, TVar tvar):c') = if tvar `notElem` (freevars s)
-                                then (unify(substAll tvar s c')) ++ [(tvar,s)]
+                                then (tvar,s):(unify(substAll tvar s c'))
                                 else unifyC ((s,TVar tvar):c')
 unifyB z = unifyC z
 
@@ -99,7 +111,7 @@ unifyC _ = error "Cannot unify!"
 freevars :: Type -> [String]
 freevars (TVar s) = [s]
 freevars (TFun t1 t2) = freevars(t1) ++ freevars(t2)
--- freevars (TPoly ss t) =
+freevars (TPoly ss t) = ss ++ freevars(t)
 freevars _ = []
 
 substAll :: String -> Type -> [(Type,Type)] -> [(Type,Type)]
@@ -110,7 +122,9 @@ subst s t (TVar s1) = if s == s1
                             then t
                             else (TVar s1)
 subst s t (TFun t1 t2) = TFun (subst s t t1) (subst s t t2)
--- subst s t (TPoly ...
+subst s t (TPoly ss t') = if s `elem` ss
+                            then TPoly ss t'
+                            else TPoly ss (subst s t t')
 subst _ _ t = t
 
 substExp :: String -> Exp -> Exp -> Exp
