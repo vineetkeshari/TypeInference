@@ -29,62 +29,78 @@ data Exp = Literal   Value
          | Declare   String Exp Exp
          | Function  String Exp      -- new
          | Call      Exp Exp         -- changed
-  deriving (Eq)
+  deriving (Eq,Show)
   
 type Env = [(String, Value)]
+type TypeEnv = [(String, Type)]
 
-getNewVar :: Int -> String
-getNewVar nextVal = "X" ++ show(nextVal)
+getNewVar :: String -> Int -> String
+getNewVar str nextVal = str ++ show(nextVal+7)
 
 infer :: Exp -> Type
-infer e = applySigma (unify (getConstraints e)) (TVar "X3")
+infer e = applySigma (unify (getConstraints 1 e [] [])) (TVar "P8")
 
 applySigma :: [(String, Type)] -> Type -> Type
 applySigma [] t' = t'
 applySigma ((s,t):sig) t' = applySigma sig (subst s t t')
 
-getConstraints :: Exp -> [(Type, Type)]
-getConstraints (Literal (IntV _)) = let ix = getNewVar 1 in [(TVar ix, TInt)]
-getConstraints (Literal (BoolV _)) = let bx = getNewVar 2 in [(TVar bx, TBool)]
-getConstraints (Unary (Not) e) = let ux = getNewVar 3 in
-                                    let ((ex,t):c) = getConstraints e in
-                                        [(TVar ux, TBool), (t, TBool), (ex, t)] ++ c
-getConstraints (Unary (Neg) e) = let ux = getNewVar 4 in
-                                    let ((ex,t):c) = getConstraints e in
-                                        [(TVar ux, TInt), (t, TInt), (ex, t)] ++ c
-getConstraints (Binary (Add) e1 e2) = let bx = getNewVar 5 in
-                                        let ((e1x, t1):c1, (e2x, t2):c2) = (getConstraints e1, getConstraints e2) in
-                                            [(TVar bx, TInt), (t1, TInt), (t2, TInt), (e1x, t1), (e2x, t2)] ++ c1 ++ c2
-getConstraints (Binary (Sub) e1 e2) = let bx = getNewVar 6 in
-                                        let ((e1x, t1):c1, (e2x, t2):c2) = (getConstraints e1, getConstraints e2) in
-                                            [(TVar bx, TInt), (t1, TInt), (t2, TInt), (e1x, t1), (e2x, t2)] ++ c1 ++ c2
-getConstraints (Binary (Mul) e1 e2) = let bx = getNewVar 7 in
-                                        let ((e1x, t1):c1, (e2x, t2):c2) = (getConstraints e1, getConstraints e2) in
-                                            [(TVar bx, TInt), (t1, TInt), (t2, TInt), (e1x, t1), (e2x, t2)] ++ c1 ++ c2
-getConstraints (Binary (Div) e1 e2) = let bx = getNewVar 8 in
-                                        let ((e1x, t1):c1, (e2x, t2):c2) = (getConstraints e1, getConstraints e2) in
-                                            [(TVar bx, TInt), (t1, TInt), (t2, TInt), (e1x, t1), (e2x, t2)] ++ c1 ++ c2
-getConstraints (Binary (And) e1 e2) = let bx = getNewVar 9 in
-                                        let ((e1x, t1):c1, (e2x, t2):c2) = (getConstraints e1, getConstraints e2) in
-                                            [(TVar bx, TBool), (t1, TBool), (t2, TBool), (e1x, t1), (e2x, t2)] ++ c1 ++ c2
-getConstraints (Binary (Or) e1 e2) = let bx = getNewVar 10 in
-                                        let ((e1x, t1):c1, (e2x, t2):c2) = (getConstraints e1, getConstraints e2) in
-                                            [(TVar bx, TBool), (t1, TBool), (t2, TBool), (e1x, t1), (e2x, t2)] ++ c1 ++ c2
-getConstraints (If b t f) = let ix = getNewVar 20 in
-                                let ((bx, bt):c1, (tx, tt):c2, (fx, ft):c3) = (getConstraints b, getConstraints t, getConstraints f) in
-                                    [(TVar ix, tt), (tt, ft), (bt, TBool), (bx, bt), (tx, tt), (fx, ft)] ++ c1 ++ c2 ++ c3
-getConstraints (Declare x e body) = (getConstraints (substExp x e body)) ++ getConstraints(e)
-getConstraints (Variable x) = error ("Unbounded variable " ++ x)
-getConstraints (Function x e) = let (funx, fromx, tox) = (getNewVar 31, getNewVar 32, getNewVar 33) in
-                                    [(TVar funx, TFun (TVar fromx) (TVar tox))]
-getConstraints (Call (Function x e) arg) = let cx = getNewVar 30 in
-                                            let ((argx, argt):c1, (funx, funt):c2, (ex, et):c3) = (getConstraints arg, getConstraints (Function x e), getConstraints (substExp x arg e)) in
-                                                case funt of
-                                                    (TFun fromt tot) -> [(TVar cx, tot), (tot, et), (fromt, argt), (argx,argt), (funx, funt), (ex,et)] ++ c1 ++ c2 ++ c3
-                                                    _ -> error "Function type doesn't look like function"
-getConstraints (Call _ arg) = error "Cannot call non-function"
+getUnaryConstraints :: String -> Int -> Type -> Type -> Exp -> Env -> TypeEnv -> [(Type, Type)]
+getUnaryConstraints var i typ1 typ2 e env typeEnv =
+    let ux = getNewVar var i in
+        let ((ex,t):c) = getConstraints (i*3) e env typeEnv in
+            [(TVar ux, typ1), (t, typ2), (ex, t)] ++ c
 
-getConstraints _ = []
+getBinaryConstraints :: String -> Int -> Type -> Type -> Type -> Exp -> Exp -> Env -> TypeEnv -> [(Type, Type)]
+getBinaryConstraints var i typ typ1 typ2 e1 e2 env typeEnv =
+    let bx = getNewVar var i in
+        let ((e1x, t1):c1, (e2x, t2):c2) = (getConstraints (i*3) e1 env typeEnv, getConstraints (i*4) e2 env typeEnv) in
+            [(TVar bx, typ), (t1, typ1), (t2, typ2), (e1x, t1), (e2x, t2)] ++ c1 ++ c2
+
+getConstraints :: Int -> Exp -> Env -> TypeEnv -> [(Type, Type)]
+getConstraints i (Literal (IntV _)) env typeEnv =
+    let ix = getNewVar "A" i in [(TVar ix, TInt)]
+getConstraints i (Literal (BoolV _)) env typeEnv =
+    let bx = getNewVar "B" i in [(TVar bx, TBool)]
+getConstraints i (Unary (Not) e) env typeEnv =
+    getUnaryConstraints "C" i TBool TBool e env typeEnv
+getConstraints i (Unary (Neg) e) env typeEnv =
+    getUnaryConstraints "D" i TInt TInt e env typeEnv
+getConstraints i (Binary (Add) e1 e2) env typeEnv =
+    getBinaryConstraints "E" i TInt TInt TInt e1 e2 env typeEnv
+getConstraints i (Binary (Sub) e1 e2) env typeEnv =
+    getBinaryConstraints "F" i TInt TInt TInt e1 e2 env typeEnv
+getConstraints i (Binary (Mul) e1 e2) env typeEnv =
+    getBinaryConstraints "G" i TInt TInt TInt e1 e2 env typeEnv
+getConstraints i (Binary (Div) e1 e2) env typeEnv =
+    getBinaryConstraints "H" i TInt TInt TInt e1 e2 env typeEnv
+getConstraints i (Binary (And) e1 e2) env typeEnv =
+    getBinaryConstraints "I" i TBool TBool TBool e1 e2 env typeEnv
+getConstraints i (Binary (Or) e1 e2) env typeEnv =
+    getBinaryConstraints "J" i TBool TBool TBool e1 e2 env typeEnv
+getConstraints i (If b t f) env typeEnv =
+    let ix = getNewVar "K" i in
+        let ((bx, bt):c1, (tx, tt):c2, (fx, ft):c3) = (getConstraints (i*3) b env typeEnv, getConstraints (i*4) t env typeEnv, getConstraints (i*5) f env typeEnv) in
+            [(TVar ix, tt), (tt, ft), (bt, TBool), (bx, bt), (tx, tt), (fx, ft)] ++ c1 ++ c2 ++ c3
+getConstraints i (Declare x e body) env typeEnv =
+    let dx = getNewVar "P" i in
+        let ((bx, bt):c1, (ex, et):c2) = (getConstraints (i*3) (substExp x e body) env typeEnv, getConstraints (i+1) e env typeEnv) in
+            [(TVar dx, bt), (bx, bt), (ex, et)] ++ c1 ++ c2
+getConstraints i (Variable x) env typeEnv =
+    let vx = getNewVar "L" i in
+        case lookup x typeEnv of
+            Just t -> [(TVar vx, t)]
+            Nothing -> error ("Unbound variable " ++ x)
+getConstraints i (Function x e) env typeEnv =
+    let (funx, argx) = (getNewVar "M" i, getNewVar "N" (i+1)) in
+        let ((ex,et):c) = getConstraints (i*2) e env ((x, (TVar argx)):typeEnv) in
+            [(TVar funx, TFun (TVar argx) et), (ex, et)] ++ c
+getConstraints i (Call fun arg) env typeEnv =
+    let cx = getNewVar "O" i in
+        let ((argx, argt):c1, (funx, funt):c2) = (getConstraints (i*3) arg env typeEnv, getConstraints (i*4) fun env typeEnv) in
+            case funt of
+                (TFun fromt tot) -> [(TVar cx, tot), (fromt, argt), (argx, argt), (funx, funt)] ++ c1 ++ c2
+                _ -> error "Function type in call doesn't look like function"
+getConstraints _ _ _ _ = []
 
 unify :: [(Type, Type)] -> [(String, Type)]
 unify [] = []
@@ -142,7 +158,7 @@ substExp x e (Function y e') = if x == y
                                     then (Function y e')
                                     else (Function y (substExp x e e'))
 substExp x e (Call e1 e2) = Call (substExp x e e1) (substExp x e e2)
-
+{-
 -- Code to display expressions
 instance Show Exp where
   show e = "[" ++ showExp 0 e ++ "]"
@@ -171,7 +187,7 @@ showBinary outer inner a op b =
       where result = showExp inner a ++ " " ++ op ++ " " ++ showExp inner b
       
 paren x = "(" ++ x ++ ")"
-
+-}
 data Type = TInt
           | TBool
           | TVar String
