@@ -38,7 +38,7 @@ getNewVar :: String -> Int -> String
 getNewVar str nextVal = str ++ show(nextVal+7)
 
 infer :: Exp -> Type
-infer e = applySigma (unify (getConstraints 1 e [] [])) (TVar "P8")
+infer e = applySigma (unify (getConstraints 1 e [] [])) (TVar "S8")
 
 applySigma :: [(String, Type)] -> Type -> Type
 applySigma [] t' = t'
@@ -77,25 +77,36 @@ getConstraints i (Binary (And) e1 e2) env typeEnv =
     getBinaryConstraints "I" i TBool TBool TBool e1 e2 env typeEnv
 getConstraints i (Binary (Or) e1 e2) env typeEnv =
     getBinaryConstraints "J" i TBool TBool TBool e1 e2 env typeEnv
+getConstraints i (Binary (GT) e1 e2) env typeEnv =
+    getBinaryConstraints "K" i TBool TInt TInt e1 e2 env typeEnv
+getConstraints i (Binary (LT) e1 e2) env typeEnv =
+    getBinaryConstraints "L" i TBool TInt TInt e1 e2 env typeEnv
+getConstraints i (Binary (GE) e1 e2) env typeEnv =
+    getBinaryConstraints "M" i TBool TInt TInt e1 e2 env typeEnv
+getConstraints i (Binary (LE) e1 e2) env typeEnv =
+    getBinaryConstraints "N" i TBool TInt TInt e1 e2 env typeEnv
+getConstraints i (Binary (EQ) e1 e2) env typeEnv =
+    let (e1x, e2x) = (getNewVar "O" i, getNewVar "P" (i+1)) in
+        getBinaryConstraints "Q" i TBool (TVar e1x) (TVar e2x) e1 e2 env typeEnv
 getConstraints i (If b t f) env typeEnv =
-    let ix = getNewVar "K" i in
+    let ix = getNewVar "R" i in
         let ((bx, bt):c1, (tx, tt):c2, (fx, ft):c3) = (getConstraints (i*3) b env typeEnv, getConstraints (i*4) t env typeEnv, getConstraints (i*5) f env typeEnv) in
             [(TVar ix, tt), (tt, ft), (bt, TBool), (bx, bt), (tx, tt), (fx, ft)] ++ c1 ++ c2 ++ c3
 getConstraints i (Declare x e body) env typeEnv =
-    let dx = getNewVar "P" i in
+    let dx = getNewVar "S" i in
         let ((bx, bt):c1, (ex, et):c2) = (getConstraints (i*3) (substExp x e body) env typeEnv, getConstraints (i+1) e env typeEnv) in
             [(TVar dx, bt), (bx, bt), (ex, et)] ++ c1 ++ c2
 getConstraints i (Variable x) env typeEnv =
-    let vx = getNewVar "L" i in
+    let vx = getNewVar "T" i in
         case lookup x typeEnv of
             Just t -> [(TVar vx, t)]
             Nothing -> error ("Unbound variable " ++ x)
 getConstraints i (Function x e) env typeEnv =
-    let (funx, argx) = (getNewVar "M" i, getNewVar "N" (i+1)) in
+    let (funx, argx) = (getNewVar "U" i, getNewVar "V" (i+1)) in
         let ((ex,et):c) = getConstraints (i*2) e env ((x, (TVar argx)):typeEnv) in
             [(TVar funx, TFun (TVar argx) et), (ex, et)] ++ c
 getConstraints i (Call fun arg) env typeEnv =
-    let cx = getNewVar "O" i in
+    let cx = getNewVar "W" i in
         let ((argx, argt):c1, (funx, funt):c2) = (getConstraints (i*3) arg env typeEnv, getConstraints (i*4) fun env typeEnv) in
             case funt of
                 (TFun fromt tot) -> [(TVar cx, tot), (fromt, argt), (argx, argt), (funx, funt)] ++ c1 ++ c2
