@@ -30,7 +30,7 @@ data Exp = Literal   Value
          | Declare   String Exp Exp
          | Function  String Exp      -- new
          | Call      Exp Exp         -- changed
-  deriving (Eq,Show)
+  deriving (Eq)
   
 type Env = [(String, Value)]
 type TypeEnv = [(String, Type)]
