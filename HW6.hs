@@ -35,22 +35,28 @@ data Exp = Literal   Value
 type Env = [(String, Value)]
 type TypeEnv = [(String, Type)]
 
-getNewVar :: String -> Int -> String
-getNewVar str nextVal = str ++ show(nextVal+7)
+type ConState = (Int, [(Type, Type)])
+type ConValue = (Type, [(Type, Type)])
+
+startState = (0, [])
+
+getNewVar :: Int -> String
+getNewVar nextVal = "X" ++ show(nextVal)
 
 infer :: Exp -> Type
 infer e = inferType e
 
 inferType :: Exp -> Type
 inferType e =
-    let unified = unify (getConstraints 1 e []) in
-        if anyType TError unified
+    let (var, cons) = evalState (getConstraints (e, [])) startState
+        unified = unify (cons) in
+          if anyType TError unified
             then TError
-            else let typ = applySigma (unified) (TVar "X8") in
-                    let fvs = removeDups (freevars typ) in
-                    case fvs of
-                        [] -> typ
-                        _ -> TPoly fvs typ
+            else let typ = applySigma (unified) var
+                     fvs = removeDups (freevars typ) in
+                       case fvs of
+                         [] -> typ
+                         _ -> TPoly fvs typ
 
 applySigma :: [(String, Type)] -> Type -> Type
 applySigma [] t' = t'
@@ -62,92 +68,185 @@ anyType typ ((s,t):sigma') = if t == typ
                                 then True
                                 else anyType typ sigma'
 
-getUnaryConstraints :: String -> Int -> Type -> Type -> Exp -> TypeEnv -> [(Type, Type)]
-getUnaryConstraints var i typ1 typ2 e typeEnv =
-    let ux = getNewVar var i in
-        let ((ex,t):c) = getConstraints (i*3) e typeEnv in
-            [(TVar ux, typ1), (t, typ2), (ex, t)] ++ c
+getConstraints :: (Exp, TypeEnv) -> State ConState ConValue
+getConstraints (Literal (IntV _), typeEnv) = do
+    (i, cons) <- get
+    let ix = TVar (getNewVar i) in do
+        put (i+1, [(ix, TInt)] ++ cons)
+        (newI, newCons) <- get
+        return (ix, newCons)
+getConstraints (Literal (BoolV _), typeEnv) = do
+    (i, cons) <- get
+    let ix = TVar (getNewVar i) in do
+        put (i+1, [(ix, TBool)] ++ cons)
+        (newI, newCons) <- get
+        return (ix, newCons)
+getConstraints (Unary (Not) e, typeEnv) = do
+    (ev, econs) <- getConstraints (e, typeEnv)
+    (i, cons) <- get
+    let ux = TVar (getNewVar i) in do
+        put (i+1, [(ux, TBool), (ev, TBool)] ++ cons)
+        (newCounter, newCons) <- get
+        return (ux, newCons)
+getConstraints (Unary (Neg) e, typeEnv) = do
+    (ev, econs) <- getConstraints (e, typeEnv)
+    (i, cons) <- get
+    let ux = TVar (getNewVar i) in do
+        put (i+1, [(ux, TInt), (ev, TInt)] ++ cons)
+        (newCounter, newCons) <- get
+        return (ux, newCons)
+getConstraints (Binary (Add) e1 e2, typeEnv) = do
+    (e1v, e1cons) <- getConstraints (e1, typeEnv)
+    (e2v, e2cons) <- getConstraints (e2, typeEnv)
+    (i, cons) <- get
+    let bx = TVar (getNewVar i) in do
+        put (i+1, [(bx, TInt), (e1v, TInt), (e2v, TInt)] ++ cons)
+        (newCounter, newCons) <- get
+        return (bx, newCons)
+getConstraints (Binary (Sub) e1 e2, typeEnv) = do
+    (e1v, e1cons) <- getConstraints (e1, typeEnv)
+    (e2v, e2cons) <- getConstraints (e2, typeEnv)
+    (i, cons) <- get
+    let bx = TVar (getNewVar i) in do
+        put (i+1, [(bx, TInt), (e1v, TInt), (e2v, TInt)] ++ cons)
+        (newCounter, newCons) <- get
+        return (bx, newCons)
+getConstraints (Binary (Mul) e1 e2, typeEnv) = do
+    (e1v, e1cons) <- getConstraints (e1, typeEnv)
+    (e2v, e2cons) <- getConstraints (e2, typeEnv)
+    (i, cons) <- get
+    let bx = TVar (getNewVar i) in do
+        put (i+1, [(bx, TInt), (e1v, TInt), (e2v, TInt)] ++ cons)
+        (newCounter, newCons) <- get
+        return (bx, newCons)
+getConstraints (Binary (Div) e1 e2, typeEnv) = do
+    (e1v, e1cons) <- getConstraints (e1, typeEnv)
+    (e2v, e2cons) <- getConstraints (e2, typeEnv)
+    (i, cons) <- get
+    let bx = TVar (getNewVar i) in do
+        put (i+1, [(bx, TInt), (e1v, TInt), (e2v, TInt)] ++ cons)
+        (newCounter, newCons) <- get
+        return (bx, newCons)
+getConstraints (Binary (And) e1 e2, typeEnv) = do
+    (e1v, e1cons) <- getConstraints (e1, typeEnv)
+    (e2v, e2cons) <- getConstraints (e2, typeEnv)
+    (i, cons) <- get
+    let bx = TVar (getNewVar i) in do
+        put (i+1, [(bx, TBool), (e1v, TBool), (e2v, TBool)] ++ cons)
+        (newCounter, newCons) <- get
+        return (bx, newCons)
+getConstraints (Binary (Or) e1 e2, typeEnv) = do
+    (e1v, e1cons) <- getConstraints (e1, typeEnv)
+    (e2v, e2cons) <- getConstraints (e2, typeEnv)
+    (i, cons) <- get
+    let bx = TVar (getNewVar i) in do
+        put (i+1, [(bx, TBool), (e1v, TBool), (e2v, TBool)] ++ cons)
+        (newCounter, newCons) <- get
+        return (bx, newCons)
+getConstraints (Binary (GT) e1 e2, typeEnv) = do
+    (e1v, e1cons) <- getConstraints (e1, typeEnv)
+    (e2v, e2cons) <- getConstraints (e2, typeEnv)
+    (i, cons) <- get
+    let bx = TVar (getNewVar i) in do
+        put (i+1, [(bx, TInt), (e1v, TInt), (e2v, TInt)] ++ cons)
+        (newCounter, newCons) <- get
+        return (bx, newCons)
+getConstraints (Binary (LT) e1 e2, typeEnv) = do
+    (e1v, e1cons) <- getConstraints (e1, typeEnv)
+    (e2v, e2cons) <- getConstraints (e2, typeEnv)
+    (i, cons) <- get
+    let bx = TVar (getNewVar i) in do
+        put (i+1, [(bx, TInt), (e1v, TInt), (e2v, TInt)] ++ cons)
+        (newCounter, newCons) <- get
+        return (bx, newCons)
+getConstraints (Binary (GE) e1 e2, typeEnv) = do
+    (e1v, e1cons) <- getConstraints (e1, typeEnv)
+    (e2v, e2cons) <- getConstraints (e2, typeEnv)
+    (i, cons) <- get
+    let bx = TVar (getNewVar i) in do
+        put (i+1, [(bx, TInt), (e1v, TInt), (e2v, TInt)] ++ cons)
+        (newCounter, newCons) <- get
+        return (bx, newCons)
+getConstraints (Binary (LE) e1 e2, typeEnv) = do
+    (e1v, e1cons) <- getConstraints (e1, typeEnv)
+    (e2v, e2cons) <- getConstraints (e2, typeEnv)
+    (i, cons) <- get
+    let bx = TVar (getNewVar i) in do
+        put (i+1, [(bx, TInt), (e1v, TInt), (e2v, TInt)] ++ cons)
+        (newCounter, newCons) <- get
+        return (bx, newCons)
+getConstraints (Binary (EQ) e1 e2, typeEnv) = do
+    (e1v, e1cons) <- getConstraints (e1, typeEnv)
+    (e2v, e2cons) <- getConstraints (e2, typeEnv)
+    (i, cons) <- get
+    let (bx, argx) = (TVar (getNewVar i), TVar (getNewVar (i+1))) in do
+        put (i+2, [(bx, TBool), (e1v, argx), (e2v, argx)] ++ cons)
+        (newCounter, newCons) <- get
+        return (bx, newCons)
+getConstraints (If b t f, typeEnv) = do
+    (bv, bcons) <- getConstraints (b, typeEnv)
+    (tv, tcons) <- getConstraints (t, typeEnv)
+    (fv, fcons) <- getConstraints (f, typeEnv)
+    (i, cons) <- get
+    let ifx = TVar (getNewVar i) in do
+        put (i+1, [(ifx, tv), (tv, fv), (bv, TBool)] ++ cons)
+        (newCounter, newCons) <- get
+        return (ifx, newCons)
+getConstraints (Function x e, typeEnv) = do
+    (i0, cons0) <- get
+    let argx = TVar (getNewVar i0) in do
+      put (i0+1, cons0)
+      (ev, econs) <- getConstraints (e, (x, argx):typeEnv)
+      (i, cons) <- get
+      let funx = (TVar (getNewVar i)) in do
+        put (i+1, [(funx, TFun argx ev)] ++ cons)
+        (newCounter, newCons) <- get
+        return (funx, newCons)
+getConstraints (Call fun arg, typeEnv) = do
+    (argv, argcons) <- getConstraints (arg, typeEnv)
+    (funv, funcons) <- getConstraints (fun, typeEnv)
+    (i, cons) <- get
+    let (cx, tox) = (TVar (getNewVar i), TVar (getNewVar (i+1))) in do
+        put (i+2, [(cx, tox), (funv, TFun argv tox)] ++ cons)
+        (newCounter, newCons) <- get
+        return (cx, newCons)
+getConstraints (Variable x, typeEnv) = do
+    (i, cons) <- get
+    let vx = TVar (getNewVar i) in do
+      case lookup x typeEnv of
+        Just t ->
+          case t of
+            TPoly fvs typ ->
+              let replacedVars = [(fvs!!n, TVar (getNewVar (i+n+1))) | n <- [0..((length fvs)-1)]] in
+                put (i+1+(length fvs), [(vx, applySigma replacedVars typ)] ++ cons)
+            _ -> put (i+1, [(vx, t)] ++ cons)
+        Nothing -> put (i+1, [(vx, TError)] ++ cons)
+      (newCounter, newCons) <- get
+      return (vx, newCons)
+getConstraints (Declare x e body, typeEnv) = do
+    (i0, cons0) <- get
+    let (lenVars, fvs, applied, unified) = declareHelper e typeEnv i0 in do
+      put (i0+(lenVars), cons0)
+      (bv, bcons) <- getConstraints (body, (x, TPoly fvs applied):typeEnv)
+      (i,cons) <- get
+      let dx = TVar (getNewVar i) in do
+        put (i+1, [(dx, if (anyType TError unified) then TError else bv)] ++ cons)
+        (newCounter, newCons) <- get
+        return (dx, newCons)
+getConstraints _ = do
+    (i, cons) <- get
+    return (TVar "Error", cons)
 
-getBinaryConstraints :: String -> Int -> Type -> Type -> Exp -> Exp -> TypeEnv -> [(Type, Type)]
-getBinaryConstraints var i typ typArgs e1 e2 typeEnv =
-    let bx = getNewVar var i in
-        let ((e1x, t1):c1, (e2x, t2):c2) = (getConstraints (i*3) e1 typeEnv, getConstraints (i*4) e2 typeEnv) in
-            [(TVar bx, typ), (typArgs, e1x), (typArgs, e2x), (e1x, t1), (e2x, t2)] ++ c1 ++ c2
-
-getConstraints :: Int -> Exp -> TypeEnv -> [(Type, Type)]
-getConstraints i (Literal (IntV _)) typeEnv =
-    let ix = getNewVar "A" i in [(TVar ix, TInt)]
-getConstraints i (Literal (BoolV _)) typeEnv =
-    let bx = getNewVar "B" i in [(TVar bx, TBool)]
-getConstraints i (Unary (Not) e) typeEnv =
-    getUnaryConstraints "C" i TBool TBool e typeEnv
-getConstraints i (Unary (Neg) e) typeEnv =
-    getUnaryConstraints "D" i TInt TInt e typeEnv
-getConstraints i (Binary (Add) e1 e2) typeEnv =
-    getBinaryConstraints "E" i TInt TInt e1 e2 typeEnv
-getConstraints i (Binary (Sub) e1 e2) typeEnv =
-    getBinaryConstraints "F" i TInt TInt e1 e2 typeEnv
-getConstraints i (Binary (Mul) e1 e2) typeEnv =
-    getBinaryConstraints "G" i TInt TInt e1 e2 typeEnv
-getConstraints i (Binary (Div) e1 e2) typeEnv =
-    getBinaryConstraints "H" i TInt TInt e1 e2 typeEnv
-getConstraints i (Binary (And) e1 e2) typeEnv =
-    getBinaryConstraints "I" i TBool TBool e1 e2 typeEnv
-getConstraints i (Binary (Or) e1 e2) typeEnv =
-    getBinaryConstraints "J" i TBool TBool e1 e2 typeEnv
-getConstraints i (Binary (GT) e1 e2) typeEnv =
-    getBinaryConstraints "K" i TBool TInt e1 e2 typeEnv
-getConstraints i (Binary (LT) e1 e2) typeEnv =
-    getBinaryConstraints "L" i TBool TInt e1 e2 typeEnv
-getConstraints i (Binary (GE) e1 e2) typeEnv =
-    getBinaryConstraints "M" i TBool TInt e1 e2 typeEnv
-getConstraints i (Binary (LE) e1 e2) typeEnv =
-    getBinaryConstraints "N" i TBool TInt e1 e2 typeEnv
-getConstraints i (Binary (EQ) e1 e2) typeEnv =
-    let argx = getNewVar "P" i in
-        getBinaryConstraints "Q" i TBool (TVar argx) e1 e2 typeEnv
-getConstraints i (If b t f) typeEnv =
-    let ix = getNewVar "R" i in
-        let ((bx, bt):c1, (tx, tt):c2, (fx, ft):c3) = (getConstraints (i*3) b typeEnv, getConstraints (i*4) t typeEnv, getConstraints (i*5) f typeEnv) in
-            [(TVar ix, tt), (tt, ft), (bt, TBool), (bx, bt), (tx, tt), (fx, ft)] ++ c1 ++ c2 ++ c3
-getConstraints i (Function x e) typeEnv =
-    let (funx, argx) = (getNewVar "S" i, getNewVar "T" (i+1)) in
-        let ((ex,et):c) = getConstraints (i*2) e ((x, (TVar argx)):typeEnv) in
-            [(TVar funx, TFun (TVar argx) et), (ex, et)] ++ c
-getConstraints i (Call fun arg) typeEnv =
-    let cx = getNewVar "U" i in
-        let ((argx, argt):c1, (funx, funt):c2) = (getConstraints (i*3) arg typeEnv, getConstraints (i*4) fun typeEnv) in
-            let tox = getNewVar "O" (i+1) in
-                [(TVar cx, TVar (tox)), (funt, TFun argx (TVar tox)), (argx, argt), (funx, funt)] ++ c1 ++ c2
-getConstraints i (Variable x) typeEnv =
-    let vx = getNewVar "V" i in
-        case lookup x typeEnv of
-            Just t -> case t of
-                TPoly fvs typ -> [(TVar vx, applySigma [(fvs!!n, TVar (getNewVar "Z" (i+n))) | n <- [0..((length fvs)-1)]] typ)]
-                _ -> [(TVar vx, t)]
-            Nothing -> [(TVar vx, TError)]
-getConstraints i (Declare x e body) typeEnv =
-    getConstraintsPoly i (Declare x e body) typeEnv
---    Let substitution code
---    let dx = getNewVar "W" i in
---        let ((bx, bt):c1, (ex, et):c2) = (getConstraints (i*3) (substExp x e body) typeEnv, getConstraints (i+1) e typeEnv) in
---            [(TVar dx, bt), (bx, bt), (ex, et)] ++ c1 ++ c2
-getConstraints _ _ _ = []
-
-getConstraintsPoly :: Int -> Exp -> TypeEnv -> [(Type, Type)]
-getConstraintsPoly i (Declare x e body) typeEnv =
-    let px = getNewVar "X" i in
-        let vars = [y | y <- (removeDups (getvars e)), lookup y typeEnv == Nothing] in
-            let t2Env = [(vars!!n, TVar (getNewVar "Y" (i+n))) | n <- [0..((length vars)-1)]] ++ typeEnv in
-                let ((t2x, t2t):c) = getConstraints (i*3) e t2Env in
-                    let unified = unify ((t2x, t2t):c) in
-                        if anyType TError unified
-                            then [(TVar px, TError)]
-                            else let applied = applySigma unified t2x in
-                                    let fvs = removeDups (freevars applied) in
-                                        let ((bx, bt):c) = getConstraints (i*4) body ((x, TPoly fvs applied):typeEnv) in
-                                            [(TVar px, bt), (bx, bt)] ++ c
-                        
+declareHelper :: Exp -> TypeEnv -> Int -> (Int, [String], Type, [(String, Type)])
+declareHelper e typeEnv i0 =
+    let vars = [y | y <- (removeDups (getvars e)), lookup y typeEnv == Nothing]
+        t2Env = [(vars!!n, TVar (getNewVar (i0+n))) | n <- [0..((length vars)-1)]] ++ typeEnv
+        (t2v, t2cons) = evalState (getConstraints (e, t2Env)) startState
+        unified = unify t2cons
+        applied = applySigma unified t2v
+        fvs = removeDups (freevars applied) in
+          (length vars, fvs, applied, unified)
+      
 getvars :: Exp -> [String]
 getvars (Literal _) = []
 getvars (Unary _ e) = getvars e
