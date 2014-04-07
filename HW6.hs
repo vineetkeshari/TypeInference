@@ -148,7 +148,7 @@ getConstraints (Binary (GT) e1 e2, typeEnv) = do
     (e2v, e2cons) <- getConstraints (e2, typeEnv)
     (i, cons) <- get
     let bx = TVar (getNewVar i) in do
-        put (i+1, [(bx, TInt), (e1v, TInt), (e2v, TInt)] ++ cons)
+        put (i+1, [(bx, TBool), (e1v, TInt), (e2v, TInt)] ++ cons)
         (newCounter, newCons) <- get
         return (bx, newCons)
 getConstraints (Binary (LT) e1 e2, typeEnv) = do
@@ -156,7 +156,7 @@ getConstraints (Binary (LT) e1 e2, typeEnv) = do
     (e2v, e2cons) <- getConstraints (e2, typeEnv)
     (i, cons) <- get
     let bx = TVar (getNewVar i) in do
-        put (i+1, [(bx, TInt), (e1v, TInt), (e2v, TInt)] ++ cons)
+        put (i+1, [(bx, TBool), (e1v, TInt), (e2v, TInt)] ++ cons)
         (newCounter, newCons) <- get
         return (bx, newCons)
 getConstraints (Binary (GE) e1 e2, typeEnv) = do
@@ -164,7 +164,7 @@ getConstraints (Binary (GE) e1 e2, typeEnv) = do
     (e2v, e2cons) <- getConstraints (e2, typeEnv)
     (i, cons) <- get
     let bx = TVar (getNewVar i) in do
-        put (i+1, [(bx, TInt), (e1v, TInt), (e2v, TInt)] ++ cons)
+        put (i+1, [(bx, TBool), (e1v, TInt), (e2v, TInt)] ++ cons)
         (newCounter, newCons) <- get
         return (bx, newCons)
 getConstraints (Binary (LE) e1 e2, typeEnv) = do
@@ -172,7 +172,7 @@ getConstraints (Binary (LE) e1 e2, typeEnv) = do
     (e2v, e2cons) <- getConstraints (e2, typeEnv)
     (i, cons) <- get
     let bx = TVar (getNewVar i) in do
-        put (i+1, [(bx, TInt), (e1v, TInt), (e2v, TInt)] ++ cons)
+        put (i+1, [(bx, TBool), (e1v, TInt), (e2v, TInt)] ++ cons)
         (newCounter, newCons) <- get
         return (bx, newCons)
 getConstraints (Binary (EQ) e1 e2, typeEnv) = do
