@@ -240,17 +240,20 @@ getConstraints (Variable x, typeEnv) = do
       case lookup x typeEnv of
         Just t ->
           case t of
+            -- Substitute polymorphic type with fresh variables
             TPoly fvs typ ->
               let replacedVars = [(fvs!!n, TVar (getNewVar (i+n+1))) | n <- [0..((length fvs)-1)]] in
                 put (i+1+(length fvs), [(vx, applySigma replacedVars typ)] ++ cons)
+            -- If not polymorphic, simply use the type in type env
             _ -> put (i+1, [(vx, t)] ++ cons)
+        -- If nothing is found, this is an unbound variable
         Nothing -> put (i+1, [(vx, TError)] ++ cons)
       (newCounter, newCons) <- get
       return (vx, newCons)
 getConstraints (Declare x e body, typeEnv) = do
     (i0, cons0) <- get
-    let (lenVars, fvs, applied, unified) = declareHelper e typeEnv i0 in do
-      put (i0+(lenVars), cons0)
+    let (fvs, applied, unified) = declareHelper x e typeEnv i0 in do
+      put (i0+1, cons0)
       (bv, bcons) <- getConstraints (body, (x, TPoly fvs applied):typeEnv)
       (i,cons) <- get
       let dx = TVar (getNewVar i) in do
@@ -261,23 +264,22 @@ getConstraints _ = do
     (i, cons) <- get
     return (TVar "Error", cons)
 
--- Helper function for Declare statements
+-- Helper function for Declare statements (for let polymorphism algorithm)
 --  Does all the dirty work during let polymorphism
 --   let x = t1 in t2
---   Finds all variables mentioned in t2
+--   Adds x to type environment
 --   Gets constraints for t1
 --   Unifies the constraints
 --   Applies the substitutions
 --   Collects remaining free variables
-declareHelper :: Exp -> TypeEnv -> Int -> (Int, [String], Type, [(String, Type)])
-declareHelper e typeEnv i0 =
-    let vars = [y | y <- (removeDups (getvars e)), lookup y typeEnv == Nothing]
-        t2Env = [(vars!!n, TVar (getNewVar (i0+n))) | n <- [0..((length vars)-1)]] ++ typeEnv
-        (t2v, t2cons) = evalState (getConstraints (e, t2Env)) startState
+declareHelper :: String -> Exp -> TypeEnv -> Int -> ([String], Type, [(String, Type)])
+declareHelper x e typeEnv i0 =
+    let dx = TVar (getNewVar i0)
+        (t2v, t2cons) = evalState (getConstraints (e, (x,dx):typeEnv)) startState
         unified = unify t2cons
         applied = applySigma unified t2v
         fvs = removeDups (freevars applied) in
-          (length vars, fvs, applied, unified)
+          (fvs, applied, unified)
 
 -- Get all variables mentioned in an expression      
 getvars :: Exp -> [String]
@@ -359,7 +361,7 @@ subst _ _ t = t
 
 -- [DEPRECATED]
 -- Substitute all occurences of a variable with an expression recursively
---  Was used by let statements without efficient polymorphism algorithm
+--  Was used by let statements without efficient let polymorphism algorithm
 substExp :: String -> Exp -> Exp -> Exp
 substExp _ _ (Literal v) = Literal v
 substExp x e (Unary uop e1) = Unary uop (substExp x e e1)
