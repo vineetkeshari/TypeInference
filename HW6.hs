@@ -33,19 +33,21 @@ data Exp = Literal   Value
   deriving (Eq)
   
 type Env = [(String, Value)]
-type TypeEnv = [(String, Type)]
-
-type ConState = (Int, [(Type, Type)])
-type ConValue = (Type, [(Type, Type)])
 
 startState = (0, [])
 
+-- Get a variable name
 getNewVar :: Int -> String
 getNewVar nextVal = "X" ++ show(nextVal)
 
+-- Main infer function
 infer :: Exp -> Type
 infer e = inferType e
 
+-- Gets all constraints,
+--  unifies them,
+--  checks for any errors,
+--  assigns polymorphic type if any free variables.
 inferType :: Exp -> Type
 inferType e =
     let (var, cons) = evalState (getConstraints (e, [])) startState
@@ -58,16 +60,38 @@ inferType e =
                          [] -> typ
                          _ -> TPoly fvs typ
 
+-- Applies a set of substitutions (sigma) to a type or type variable
+--  in the order they appear in the list
 applySigma :: [(String, Type)] -> Type -> Type
 applySigma [] t' = t'
 applySigma ((s,t):sig) t' = applySigma sig (subst s t t')
 
+-- Check if any type in this set of substitutions is a particular kind
+--  Useful for checking for TError
 anyType :: Type -> [(String,Type)] -> Bool
 anyType _ [] = False
 anyType typ ((s,t):sigma') = if t == typ
                                 then True
                                 else anyType typ sigma'
 
+-- TypeEnv stores the most general type of variables defined in current environment
+--  used in let statements and for function arguments
+type TypeEnv = [(String, Type)]
+
+-- Monad types
+-- State : Variable name counter, constraints
+-- Return : The variable name for expression, all constraints after this expression is done
+type ConState = (Int, [(Type, Type)])
+type ConValue = (Type, [(Type, Type)])
+
+-- Get all constraints in expression
+--  Call recursively on subexpressions
+--  Uses state monad as defined above
+--  General pattern:
+--    Collect constraints from sub-expressions
+--    Generate a variable for this expression from the counter
+--    Store an incremented counter and this expression constraints
+--    return this expression's type and constraints
 getConstraints :: (Exp, TypeEnv) -> State ConState ConValue
 getConstraints (Literal (IntV _), typeEnv) = do
     (i, cons) <- get
@@ -237,6 +261,14 @@ getConstraints _ = do
     (i, cons) <- get
     return (TVar "Error", cons)
 
+-- Helper function for Declare statements
+--  Does all the dirty work during let polymorphism
+--   let x = t1 in t2
+--   Finds all variables mentioned in t2
+--   Gets constraints for t1
+--   Unifies the constraints
+--   Applies the substitutions
+--   Collects remaining free variables
 declareHelper :: Exp -> TypeEnv -> Int -> (Int, [String], Type, [(String, Type)])
 declareHelper e typeEnv i0 =
     let vars = [y | y <- (removeDups (getvars e)), lookup y typeEnv == Nothing]
@@ -246,7 +278,8 @@ declareHelper e typeEnv i0 =
         applied = applySigma unified t2v
         fvs = removeDups (freevars applied) in
           (length vars, fvs, applied, unified)
-      
+
+-- Get all variables mentioned in an expression      
 getvars :: Exp -> [String]
 getvars (Literal _) = []
 getvars (Unary _ e) = getvars e
@@ -257,6 +290,13 @@ getvars (Call e1 e2) = (getvars e1) ++ (getvars e2)
 getvars (Declare x e b) = (getvars e) ++ [y | y <- (getvars b), y /= x]
 getvars (Variable v) = [v]
 
+-- Unification algorithm
+-- Step-wise execution for a list of constraints [(s,t)]:
+--  unify: Check for equality and type errors
+--  unifyA: Check for a variable if first element of (s,t)
+--  unifyB: Check for a variable if secons element of (s,t)
+--  unifyC: Check for equality of funtion types
+--  Otherwise, unification is not possible
 unify :: [(Type, Type)] -> [(String, Type)]
 unify [] = []
 unify ((s,t):c') = 
@@ -282,24 +322,31 @@ unifyC :: [(Type, Type)] -> [(String, Type)]
 unifyC ((TFun s1 s2, TFun t1 t2):c') = unify ([(s1,t1),(s2,t2)] ++ c')
 unifyC _ = [("ERROR", TError)]
 
+-- Get all the free variables in a type
 freevars :: Type -> [String]
 freevars (TVar s) = [s]
 freevars (TFun t1 t2) = freevars(t1) ++ freevars(t2)
 freevars (TPoly ss t) = ss ++ freevars(t)
 freevars _ = []
 
+-- Remove duplicates from a list of strings
+--  Useful to generate polymorphic types with no repitions
 removeDups :: [String] -> [String]
 removeDups s = unique [] s
 
+-- Recursive call of above unique function
 unique :: [String] -> [String] -> [String]
 unique seen [] = []
 unique seen (x:xs) = if x `notElem` seen
                     then (x:(unique (x:seen) xs))
                     else (unique seen xs)
 
+-- Substitute a string for a type in an entire list of constraints
+--  Called by unify
 substAll :: String -> Type -> [(Type,Type)] -> [(Type,Type)]
 substAll s t c = [(subst s t t1, subst s t t2) | (t1,t2) <- c]
 
+-- Substitute a string for a type in one type recursively
 subst :: String -> Type -> Type -> Type
 subst s t (TVar s1) = if s == s1
                             then t
@@ -310,6 +357,9 @@ subst s t (TPoly ss t') = if s `elem` ss
                             else TPoly ss (subst s t t')
 subst _ _ t = t
 
+-- [DEPRECATED]
+-- Substitute all occurences of a variable with an expression recursively
+--  Was used by let statements without efficient polymorphism algorithm
 substExp :: String -> Exp -> Exp -> Exp
 substExp _ _ (Literal v) = Literal v
 substExp x e (Unary uop e1) = Unary uop (substExp x e e1)
@@ -355,6 +405,7 @@ showBinary outer inner a op b =
       
 paren x = "(" ++ x ++ ")"
 
+-- The Type type (provided)
 data Type = TInt
           | TBool
           | TVar String
@@ -370,3 +421,4 @@ instance Show Type where
   show (TPoly fv typ) = "forall"++show fv++".("++show typ++")"
   show TError = "Type error!"
 
+-- This homework better be worth 20% of the grade. Took forever.
