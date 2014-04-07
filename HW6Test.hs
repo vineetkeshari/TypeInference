@@ -11,7 +11,8 @@ e1 = ["2 + 23 * (3 + 2) / 2"] ++
         ["2==3", "true==false", "5>6", "if true then 1 else -3", "if true then 1 else false"] ++
         ["if 1 then true else false", "if !true then !false else !false"] ++
         ["let x = true in !x", "let x = false in x+y", "let x = false in let y = 2 in if y==y then x else !x"] ++
-        ["let x = x in x", "let x = x in y", "let y = 2 in let x = y in x", "fun (x) x", "fun (x) x+2"] ++
+        ["let x = x in x", "let x = x+1 in x", "let x = x==x in x"] ++
+        [ "let x = x in y", "let y = 2 in let x = y in x", "fun (x) x", "fun (x) x+2"] ++
         ["fun (x) x==x", "let x = fun (x) x in x", "let x = fun (x) x in if x(true) then x(1) else x(2)"] ++
         ["let x = fun (x) x in if x(true)==x(false) then x(1)==x(2) else x(3)==x(4)"] ++
         ["let x = fun (x) x in if x(true)==x(false) then x(1)==x(2) else x(3)"] ++
