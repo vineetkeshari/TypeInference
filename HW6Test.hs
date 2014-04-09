@@ -23,7 +23,9 @@ e1 = ["2 + 23 * (3 + 2) / 2"] ++
         ["let x = 1 in let x = x + 2 in x", "let x = fun(x) fun(y) x in x", "let x = fun(x) fun(y) x in y"] ++
         ["let x = fun(x) fun(y) y in x", "let x = fun(x) fun(y) y in y", "fun(x) fun(y) fun(z) x+y"] ++
         ["fun(x) fun(y) fun(z) !z", "fun(x) fun(y) fun(z) y==z", "fun(x) fun(y) x"] ++
-        ["let x = x+1 in x", "let x = !x in x", "let x = x==x in x"]
+        ["let x = x+1 in x", "let x = !x in x", "let x = x==x in x"] ++
+        ["let x = true in let x = x+1 in x", "let x = true in let x = x + y in x"] ++
+        ["let x = fun(x) x in let y = x(true) in let z = x(2) in if y then z else z"]
 
 evaluateAndShow e = do
     print e

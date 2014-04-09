@@ -275,7 +275,10 @@ getConstraints _ = do
 declareHelper :: String -> Exp -> TypeEnv -> Int -> ([String], Type, [(String, Type)])
 declareHelper x e typeEnv i0 =
     let dx = TVar (getNewVar i0)
-        (t2v, t2cons) = evalState (getConstraints (e, (x,dx):typeEnv)) startState
+        t2Env = case lookup x typeEnv of
+                    Nothing -> (x,dx):typeEnv
+                    Just _ -> typeEnv
+        (t2v, t2cons) = evalState (getConstraints (e, t2Env)) startState
         unified = unify t2cons
         applied = applySigma unified t2v
         fvs = removeDups (freevars applied) in
