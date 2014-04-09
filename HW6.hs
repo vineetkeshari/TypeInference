@@ -267,7 +267,7 @@ getConstraints _ = do
 -- Helper function for Declare statements (for let polymorphism algorithm)
 --  Does all the dirty work during let polymorphism
 --   let x = t1 in t2
---   Adds x to type environment
+--   Adds x to type environment if not already declared
 --   Gets constraints for t1
 --   Unifies the constraints
 --   Applies the substitutions
