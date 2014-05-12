@@ -25,7 +25,11 @@ e1 = ["2 + 23 * (3 + 2) / 2"] ++
         ["fun(x) fun(y) fun(z) !z", "fun(x) fun(y) fun(z) y==z", "fun(x) fun(y) x"] ++
         ["let x = x+1 in x", "let x = !x in x", "let x = x==x in x"] ++
         ["let x = true in let x = x+1 in x", "let x = true in let x = x + y in x"] ++
-        ["let x = fun(x) x in let y = x(true) in let z = x(2) in if y then z else z"]
+        ["let x = fun(x) x in let y = x(true) in let z = x(2) in if y then z else z"] ++
+        ["fun (f) fun(x) let g = f in g(x)", "((fun(f) fun(x) let g = f in g(0)) (fun(x) if x then true else false)) true"] ++
+        ["let f = fun(f) fun(g) fun(x) (f(x))(g(x)) in f"] ++ 
+        ["let f = fun(f) fun(g) fun(x) (f(x))(g(x)) in let g = (f (fun(a) fun(b) (a+b))) (fun(c) (c*c)) in g"] ++
+        ["let f = fun(f) fun(g) fun(x) (f(x))(g(x)) in let g = (f (fun(a) fun(b) (a+b))) (fun(c) (c*c)) in g(5)"]
 
 evaluateAndShow e = do
     print e
